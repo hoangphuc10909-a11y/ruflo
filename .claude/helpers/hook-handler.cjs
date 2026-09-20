@@ -232,9 +232,11 @@ function safeRequire(modulePath) {
   return null;
 }
 
-const router = safeRequire(path.join(helpersDir, 'router.js'));
-const session = safeRequire(path.join(helpersDir, 'session.js'));
-const memory = safeRequire(path.join(helpersDir, 'memory.js'));
+// Helper modules ship as .cjs in this tree; keep the .js fallback so a
+// future helper-refresh that emits .js still resolves.
+const router = safeRequire(path.join(helpersDir, 'router.cjs')) || safeRequire(path.join(helpersDir, 'router.js'));
+const session = safeRequire(path.join(helpersDir, 'session.cjs')) || safeRequire(path.join(helpersDir, 'session.js'));
+const memory = safeRequire(path.join(helpersDir, 'memory.cjs')) || safeRequire(path.join(helpersDir, 'memory.js'));
 const intelligence = safeRequire(path.join(helpersDir, 'intelligence.cjs'));
 
 // ── Intelligence timeout protection (fixes #1530, #1531) ───────────────────
