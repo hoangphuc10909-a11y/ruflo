@@ -20,6 +20,7 @@ PORT_FROM_CUBASE = "AILive From Cubase"
 HEADER = [0x7D, 0x41, 0x4C]  # sau F0 (mido bỏ F0/F7 trong .data)
 CC_BASE = 20
 N_TARGETS = 13
+CC_DUMP, CC_PING = 118, 119
 TARGET_NAMES = [f"Quick Control {i + 1}" for i in range(8)] + ["Fader"] + [f"Send {i + 1}" for i in range(4)]
 SEP = (0x7F, 0x7F, 0x7F)
 
@@ -75,6 +76,7 @@ class CubaseLink:
         self._ramps: Dict[int, threading.Event] = {}
         self._events: Dict[int, threading.Event] = {i: threading.Event() for i in range(N_TARGETS)}
         self.on_change: Optional[Callable[[int, TargetState], None]] = None
+        self._toggles: Dict[int, int] = {}
         self._stop = threading.Event()
         self._hb: Optional[threading.Thread] = None
 
@@ -150,10 +152,17 @@ class CubaseLink:
     def _sysex(self, cmd: int) -> None:
         self._send(self._lib().Message("sysex", data=HEADER + [cmd]))
 
+    def _toggle_cc(self, cc: int) -> None:
+        # script coi MỖI LẦN ĐỔI giá trị là một lệnh -> luân phiên 0/127
+        self._toggles[cc] = 0 if self._toggles.get(cc) else 127
+        self._send(self._lib().Message("control_change", channel=0, control=cc, value=self._toggles[cc]))
+
     def request_dump(self) -> None:
+        self._toggle_cc(CC_DUMP)
         self._sysex(0x01)
 
     def ping(self) -> None:
+        self._toggle_cc(CC_PING)
         self._sysex(0x02)
 
     def send_raw(self, idx: int, value01: float) -> None:

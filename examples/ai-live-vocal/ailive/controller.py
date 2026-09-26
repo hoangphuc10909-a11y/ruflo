@@ -11,7 +11,7 @@ from .health import OutputGuard
 from .keydetect import KeyResult, KeyTracker, chroma_from_audio
 from .midi_link import CubaseLink
 from .roles import ROLES, Calibration, parse_number, tonic_to_norm
-from .store import ChangeLog, Config
+from .store import ChangeLog, Config, snapshot_settings
 from .voice import VoiceReport
 
 log = logging.getLogger("ailive.ctl")
@@ -123,6 +123,7 @@ class Controller:
                 if self.link.targets[int(t)].value is not None}
         self.cfg["last_good"] = snap
         self.cfg.save()
+        snapshot_settings(self.cfg, "hat-tot")
         self.changes.add("save_last_good", count=len(snap))
 
     def restore_last_good(self) -> int:

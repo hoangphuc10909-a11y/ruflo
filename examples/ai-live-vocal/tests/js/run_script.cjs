@@ -43,6 +43,9 @@ knobs[2].mSurfaceValue.mOnDisplayValueChange(dev, '25', '');
 knobs[2].mSurfaceValue.mOnProcessValueChange(dev, 0.0625);
 knobs[8].mSurfaceValue.mOnTitleChange(dev, 'Giọng Chính', 'Volume');
 knobs[8].mSurfaceValue.mOnDisplayValueChange(dev, '-6.02', 'dB');
-sysexHandler(dev, [0xF0, 0x7D, 0x41, 0x4C, 0x02, 0xF7]);
-sysexHandler(dev, [0xF0, 0x7D, 0x41, 0x4C, 0x01, 0xF7]);
+// ping + dump qua CC (knob 14 = CC119, knob 13 = CC118)
+const byCC = cc => knobs.find(k => k.mSurfaceValue.cc === cc).mSurfaceValue;
+byCC(119).mOnProcessValueChange(dev, 1);
+byCC(118).mOnProcessValueChange(dev, 1);
+if (typeof sysexHandler !== 'function') throw new Error('sysex fallback not installed');
 console.log(JSON.stringify({ sent, bindings, knobs: knobs.length }));

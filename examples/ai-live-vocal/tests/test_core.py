@@ -104,7 +104,7 @@ def make_link():
 
 def test_link_receives_titles_and_values():
     cub, link = make_link()
-    assert link.status.connected and link.status.script_version == 3
+    assert link.status.connected and link.status.script_version == 4
     assert link.targets[2].label == "Auto-Tune Artist · Retune Speed"
     assert link.targets[2].display == "20"
     link.close()
@@ -233,14 +233,14 @@ def test_cubase_js_script_speaks_same_protocol():
     out = subprocess.run(["node", str(Path(__file__).parent / "js" / "run_script.cjs")],
                          capture_output=True, text=True, check=True).stdout
     d = json.loads(out)
-    assert d["knobs"] == 13 and d["bindings"][8] == [28, "Volume"]
+    assert d["knobs"] == 15 and d["bindings"][8] == [28, "Volume"] and len(d["bindings"]) == 26
     link = CubaseLink(backend=object())
     for m in d["sent"]:
         assert m[0] == 0xF0 and m[-1] == 0xF7 and all(0 <= b <= 0x7F for b in m[1:-1])
         link.handle_sysex(m[1:-1])
     assert link.targets[2].label == "Auto-Tune Artist · Retune Speed" and link.targets[2].display == "25"
     assert link.targets[8].label == "Giọng Chính · Volume" and link.targets[8].display == "-6.02 dB"
-    assert link.status.script_version == 3
+    assert link.status.script_version == 4
 
 
 def test_delay_follows_tempo_only_when_confident(ctl):
@@ -283,3 +283,18 @@ def test_health_helpers():
     assert auto_restore_allowed({"2": 0.1}, cal, lambda i: "Auto-Tune Artist · Retune Speed", {"tune_speed": 2})
     assert not auto_restore_allowed({"2": 0.1}, cal, lambda i: "Guitar · Gain", {"tune_speed": 2})
     assert not auto_restore_allowed({}, cal, lambda i: "", {})
+
+
+def test_settings_export_import_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setenv("AILIVE_HOME", str(tmp_path))
+    a = store.Config(tmp_path / "a.json")
+    a["assignments"] = {"tune_key": 0}
+    a["tune_strength"] = 70
+    f = store.export_settings(a, tmp_path / "preset.json")
+    b = store.Config(tmp_path / "b.json")
+    assert store.import_settings(b, f) > 5
+    assert b["assignments"] == {"tune_key": 0} and b["tune_strength"] == 70
+    assert list(store.backup_dir().glob("cau-hinh__*truoc-khi-nhap.json"))
+    (tmp_path / "bad.json").write_text('{"x": 1}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        store.import_settings(b, tmp_path / "bad.json")

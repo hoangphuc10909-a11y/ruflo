@@ -123,6 +123,7 @@ class App:
         ttk.Button(bottom, text="↩  KHÔI PHỤC", style="Mid.TButton", command=self.restore).pack(side="left")
         ttk.Button(bottom, text="Lưu cấu hình đang hát tốt", command=self.save_good).pack(side="left", padx=10)
         ttk.Button(bottom, text="Nâng cao…", command=self.open_advanced).pack(side="right")
+        ttk.Button(bottom, text="Trợ lý cài đặt", command=self.open_wizard).pack(side="right", padx=8)
 
         self.msg = ttk.Label(r, text="", wraplength=720, foreground="#c9d1d9")
         self.msg.pack(fill="x", padx=16, pady=(4, 12))
@@ -211,6 +212,10 @@ class App:
 
     def save_good(self) -> None:
         self._bg(lambda: (self.ctl.save_last_good(), ["đã lưu"])[1], "Cấu hình hiện tại:")
+
+    def open_wizard(self) -> None:
+        from .wizard import SetupWizard
+        SetupWizard(self)
 
     def open_advanced(self) -> None:
         from .advanced import AdvancedWindow
@@ -367,6 +372,8 @@ class App:
         todo = self.pending_setup()
         if todo:
             self.say(f"Cài đặt còn {len(todo)} bước. Tiếp theo: {todo[0]}", "warn")
+            if not os.environ.get("AILIVE_SMOKE") and len(todo) >= 4:
+                self.open_wizard()  # lần đầu dùng: mở trợ lý luôn
         else:
             self.say("Sẵn sàng. Bấm BẮT ĐẦU HÁT.", "ok")
 
@@ -374,11 +381,20 @@ class App:
         """Chế độ kiểm thử tự động: ghi trạng thái rồi thoát."""
         import json
         from .store import app_dir
+        windows = {}
+        for name, opener in (("wizard", self.open_wizard), ("advanced", self.open_advanced)):
+            try:
+                opener()
+                self.root.update()
+                windows[name] = "ok"
+            except Exception as e:  # ghi lại để CI báo lỗi
+                log.exception("Mở cửa sổ %s lỗi", name)
+                windows[name] = f"{type(e).__name__}: {e}"
         try:
             midi = self.link.available_ports()
         except Exception as e:
             midi = {"error": str(e)}
-        info = {"ok": True, "midi_ports": midi, "cubase_connected": self.link.status.connected, "link_error": self.link.status.error,
+        info = {"ok": all(v == "ok" for v in windows.values()), "windows": windows, "midi_ports": midi, "cubase_connected": self.link.status.connected, "link_error": self.link.status.error,
                 "captures": {k: {"running": c.running, "error": c.error} for k, c in self.caps.items()},
                 "pending_setup": self.pending_setup(), "message": self.msg.cget("text")}
         (app_dir() / "smoke.json").write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")

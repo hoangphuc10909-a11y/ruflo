@@ -6,7 +6,8 @@
 // Giao thức (ứng dụng <-> Cubase):
 //   App -> Cubase: CC kênh 1. CC20-27 = Quick Control 1-8 của track đang chọn,
 //                  CC28 = fader track đang chọn, CC29-32 = mức Send 1-4.
-//                  SysEx F0 7D 41 4C 01 F7 = xin gửi lại toàn bộ trạng thái; 02 = ping.
+//                  CC118 = xin gửi lại toàn bộ trạng thái, CC119 = ping (giá trị luân phiên 0/127).
+//                  (Dự phòng: SysEx F0 7D 41 4C 01 F7 = xin trạng thái; 02 = ping.)
 //   Cubase -> App: SysEx F0 7D 41 4C <loại> <chỉ số> <dữ liệu> F7
 //                  0x10 giá trị (14 bit), 0x11 chuỗi hiển thị, 0x12 tên (object|value),
 //                  0x20 pong, 0x21 phiên bản script.
@@ -14,7 +15,7 @@
 
 var midiremote_api = require('midiremote_api_v1')
 
-var SCRIPT_VERSION = 3
+var SCRIPT_VERSION = 4
 var deviceDriver = midiremote_api.makeDeviceDriver('ailive', 'vocalbridge', 'AI LIVE VOCAL')
 
 var midiInput = deviceDriver.mPorts.makeMidiInput()
@@ -78,19 +79,32 @@ for (var i = 0; i < N; i++) {
     knobs.push(knob)
 }
 
+function pong(activeDevice) {
+    send(activeDevice, 0x20, 0, [SCRIPT_VERSION & 0x7F])
+}
+
+function dump(activeDevice) {
+    send(activeDevice, 0x21, 0, [SCRIPT_VERSION & 0x7F])
+    for (var j = 0; j < N; j++) {
+        sendTitle(activeDevice, j, cache[j].obj, cache[j].title)
+        if (cache[j].value >= 0) sendValue(activeDevice, j, cache[j].value)
+        send(activeDevice, 0x11, j, encodeString(cache[j].display))
+    }
+}
+
+// Lệnh qua CC (chỉ dùng API đã có trong script mẫu của Steinberg): mỗi lần giá trị đổi = một lệnh
+var dumpKnob = surface.makeKnob(0, 3, 1, 1)
+dumpKnob.mSurfaceValue.mMidiBinding.setInputPort(midiInput).bindToControlChange(0, 118)
+dumpKnob.mSurfaceValue.mOnProcessValueChange = function (activeDevice) { dump(activeDevice) }
+var pingKnob = surface.makeKnob(1, 3, 1, 1)
+pingKnob.mSurfaceValue.mMidiBinding.setInputPort(midiInput).bindToControlChange(0, 119)
+pingKnob.mSurfaceValue.mOnProcessValueChange = function (activeDevice) { pong(activeDevice) }
+
+// Dự phòng qua SysEx (nếu phiên bản Cubase hỗ trợ nhận SysEx trong script)
 midiInput.mOnSysex = function (activeDevice, message) {
     if (message.length < 6 || message[1] !== 0x7D || message[2] !== 0x41 || message[3] !== 0x4C) return
-    var cmd = message[4]
-    if (cmd === 0x02) {
-        send(activeDevice, 0x20, 0, [SCRIPT_VERSION & 0x7F])
-    } else if (cmd === 0x01) {
-        send(activeDevice, 0x21, 0, [SCRIPT_VERSION & 0x7F])
-        for (var j = 0; j < N; j++) {
-            sendTitle(activeDevice, j, cache[j].obj, cache[j].title)
-            if (cache[j].value >= 0) sendValue(activeDevice, j, cache[j].value)
-            send(activeDevice, 0x11, j, encodeString(cache[j].display))
-        }
-    }
+    if (message[4] === 0x02) pong(activeDevice)
+    else if (message[4] === 0x01) dump(activeDevice)
 }
 
 deviceDriver.mOnActivate = function (activeDevice) {
@@ -100,10 +114,14 @@ deviceDriver.mOnActivate = function (activeDevice) {
 var page = deviceDriver.mMapping.makePage('AI Live')
 var channel = page.mHostAccess.mTrackSelection.mMixerChannel
 
-for (var q = 0; q < 8; q++) {
-    page.makeValueBinding(knobs[q].mSurfaceValue, channel.mQuickControls.getByIndex(q)).setValueTakeOverModeJump()
-}
-page.makeValueBinding(knobs[8].mSurfaceValue, channel.mValue.mVolume).setValueTakeOverModeJump()
-for (var s = 0; s < 4; s++) {
-    page.makeValueBinding(knobs[9 + s].mSurfaceValue, channel.mSends.getByIndex(s).mLevel).setValueTakeOverModeJump()
+// Tạo binding 2 lần: cách khắc phục đã biết để mOnTitleChange tiếp tục chạy trên Cubase >= 12.0.60
+// (https://forums.steinberg.net/t/842187)
+for (var pass = 0; pass < 2; pass++) {
+    for (var q = 0; q < 8; q++) {
+        page.makeValueBinding(knobs[q].mSurfaceValue, channel.mQuickControls.getByIndex(q)).setValueTakeOverModeJump()
+    }
+    page.makeValueBinding(knobs[8].mSurfaceValue, channel.mValue.mVolume).setValueTakeOverModeJump()
+    for (var s = 0; s < 4; s++) {
+        page.makeValueBinding(knobs[9 + s].mSurfaceValue, channel.mSends.getByIndex(s).mLevel).setValueTakeOverModeJump()
+    }
 }

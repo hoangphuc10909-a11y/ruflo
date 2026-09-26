@@ -277,7 +277,9 @@ class AdvancedWindow:
         ttk.Button(row, text="Chọn…", command=self._pick).pack(side="left", padx=4)
         ttk.Button(row, text="Tự tìm", command=lambda: self._thread(self._find)).pack(side="left")
         for text, fn in (("Sao lưu project", self._backup), ("Tạo bản riêng để hát TikTok", self._live_copy),
-                         ("Khôi phục từ bản sao lưu…", self._restore)):
+                         ("Khôi phục từ bản sao lưu…", self._restore),
+                         ("Xuất cấu hình ứng dụng (preset đã chỉnh)…", self._export_cfg),
+                         ("Nhập cấu hình ứng dụng…", self._import_cfg)):
             ttk.Button(f, text=text, command=fn).pack(anchor="w", pady=3)
         self.proj_out = self._out(f, 12)
 
@@ -322,6 +324,25 @@ class AdvancedWindow:
             t = store.restore_project(Path(p))
             self.app.changes.add("restore_project", backup=p, target=str(t))
             self._write(self.proj_out, f"Đã khôi phục về {t} (bản hiện tại cũng đã được sao lưu).")
+        except Exception as e:
+            self._write(self.proj_out, f"Lỗi: {e}")
+
+    def _export_cfg(self) -> None:
+        p = filedialog.asksaveasfilename(defaultextension=".json", initialfile="ai-live-vocal-preset.json",
+                                         filetypes=[("Cấu hình", "*.json")])
+        if p:
+            store.export_settings(self.cfg, Path(p))
+            self._write(self.proj_out, f"Đã xuất cấu hình: {p}")
+
+    def _import_cfg(self) -> None:
+        p = filedialog.askopenfilename(filetypes=[("Cấu hình", "*.json")], initialdir=str(store.backup_dir()))
+        if not p:
+            return
+        try:
+            n = store.import_settings(self.cfg, Path(p))
+            self.app.changes.add("import_settings", src=p, keys=n)
+            self._write(self.proj_out, f"Đã nhập {n} mục cấu hình (cấu hình cũ đã được sao lưu). "
+                                       "Khởi động lại ứng dụng để áp dụng thiết bị âm thanh.")
         except Exception as e:
             self._write(self.proj_out, f"Lỗi: {e}")
 

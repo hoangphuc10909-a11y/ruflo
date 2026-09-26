@@ -51,7 +51,7 @@ jobs:
           python run_app.py
           Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
           $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
-          if (-not $j.ok) { throw "smoke failed" }
+          if (-not $j.ok) { throw "smoke failed: $($j.windows | ConvertTo-Json)" }
           if ($j.link_error -match "module") { throw "MIDI backend missing: $($j.link_error)" }
           Remove-Item "$env:AILIVE_HOME\AILiveVocal\smoke.json"
 
@@ -67,7 +67,7 @@ jobs:
           $p = Start-Process -FilePath "dist\AI LIVE VOCAL\AI LIVE VOCAL.exe" -PassThru -Wait
           Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
           $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
-          if (-not $j.ok) { throw "exe smoke failed" }
+          if (-not $j.ok) { throw "exe smoke failed: $($j.windows | ConvertTo-Json)" }
           if ($j.link_error -match "module") { throw "MIDI backend missing in exe: $($j.link_error)" }
           if (-not ($j.midi_ports.out -match "Microsoft GS Wavetable")) { throw "rtmidi cannot enumerate Windows MIDI ports in exe" }
           if (!(Test-Path "dist\AI LIVE VOCAL\_internal\cubase\ailive_vocalbridge.js")) { throw "script not bundled" }

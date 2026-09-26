@@ -176,3 +176,38 @@ def find_projects(name_hint: str = "", roots: Optional[List[Path]] = None, limit
             continue
     found.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
     return found[:limit]
+
+
+# ---------------- Cấu hình ứng dụng (preset đã hiệu chuẩn) ----------------
+
+def export_settings(cfg: "Config", dest: Path) -> Path:
+    """Xuất toàn bộ cấu hình (gán vai trò, hiệu chuẩn, cấu hình hát tốt) ra file JSON."""
+    dest = Path(dest)
+    data = dict(cfg.data)
+    data["_export"] = {"app": APP_NAME, "time": time.strftime("%Y-%m-%d %H:%M:%S")}
+    dest.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return dest
+
+
+def import_settings(cfg: "Config", src: Path) -> int:
+    """Nhập cấu hình từ file đã xuất. Tự sao lưu cấu hình hiện tại trước khi ghi đè."""
+    data = json.loads(Path(src).read_text(encoding="utf-8"))
+    if data.get("_export", {}).get("app") != APP_NAME:
+        raise ValueError("File không phải cấu hình AI LIVE VOCAL.")
+    snapshot_settings(cfg, "truoc-khi-nhap")
+    data.pop("_export", None)
+    keys = [k for k in data if k in DEFAULTS]
+    for k in keys:
+        cfg[k] = data[k]
+    cfg.save()
+    return len(keys)
+
+
+def snapshot_settings(cfg: "Config", tag: str = "tu-dong") -> Path:
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dest = backup_dir() / f"cau-hinh__{stamp}__{tag}.json"
+    n = 1
+    while dest.exists():
+        dest = backup_dir() / f"cau-hinh__{stamp}__{tag}-{n}.json"
+        n += 1
+    return export_settings(cfg, dest)

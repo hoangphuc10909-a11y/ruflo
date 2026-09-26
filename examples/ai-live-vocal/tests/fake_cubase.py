@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import mido
 
-from ailive.midi_link import CC_BASE, HEADER, PORT_FROM_CUBASE, PORT_TO_CUBASE, encode_string
+from ailive.midi_link import CC_BASE, CC_DUMP, CC_PING, HEADER, PORT_FROM_CUBASE, PORT_TO_CUBASE, encode_string
 
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 SCALES = ["Chromatic", "Major", "Minor"]
@@ -36,7 +36,9 @@ def default_params():
 
 
 class FakeCubase:
-    def __init__(self, params=None):
+    def __init__(self, params=None, sysex_input=False):
+        # Mặc định KHÔNG hỗ trợ nhận SysEx (trường hợp xấu nhất): chỉ dùng CC cho ping/dump
+        self.sysex_input = sysex_input
         self.params = params or default_params()
         self.link = None
         self.cc_log = []
@@ -60,17 +62,22 @@ class FakeCubase:
         self._reply(0x11, idx, encode_string(p.fmt(p.value)))
 
     def receive(self, msg):
-        if msg.type == "control_change":
+        if msg.type == "control_change" and msg.control == CC_PING:
+            self._reply(0x20, 0, [4])
+        elif msg.type == "control_change" and msg.control == CC_DUMP:
+            self._reply(0x21, 0, [4])
+            self.announce()
+        elif msg.type == "control_change":
             idx = msg.control - CC_BASE
             self.cc_log.append((idx, msg.value))
             if idx in self.params:
                 self.params[idx].value = msg.value / 127
                 self._emit(idx)
-        elif msg.type == "sysex" and list(msg.data[:3]) == HEADER:
+        elif msg.type == "sysex" and self.sysex_input and list(msg.data[:3]) == HEADER:
             if msg.data[3] == 0x02:
-                self._reply(0x20, 0, [3])
+                self._reply(0x20, 0, [4])
             elif msg.data[3] == 0x01:
-                self._reply(0x21, 0, [3])
+                self._reply(0x21, 0, [4])
                 self.announce()
 
 
