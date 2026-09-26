@@ -1,6 +1,6 @@
 # AI LIVE VOCAL — trợ lý điều khiển Cubase Pro 15 để hát LIVE TikTok
 
-> Trạng thái: **v0.2 — đã kiểm thử tự động (Linux + máy Windows của GitHub), CHƯA chạy với Cubase thật trên máy bạn.**
+> Trạng thái: **v0.3 — đã kiểm thử tự động (Linux + máy Windows của GitHub), CHƯA chạy với Cubase thật trên máy bạn.**
 > Mọi preset là **điểm xuất phát**, chưa phải bản cân giọng hoàn chỉnh cho tới khi hát thử và nghe lại.
 
 ## 1. Kiến trúc (vì sao chọn cách này)
@@ -30,7 +30,8 @@
    → lần chạy mới nhất (dấu ✓ xanh) → mục *Artifacts* → tải **AI-LIVE-VOCAL-windows** → giải nén →
    chạy `AI LIVE VOCAL.exe`. (Tự build: cài Python 3.11 64-bit rồi chạy `build.bat`.)
    Chạy `kiem_tra_may.bat` (hoặc `AI LIVE VOCAL.exe --kiem-tra`) để tạo báo cáo kiểm tra máy.
-3. Mở ứng dụng → **Nâng cao → 1. Kiểm tra máy** → bấm **Cài script cầu nối vào Cubase**.
+3. Lần đầu mở app, **Trợ lý cài đặt** tự hiện danh sách việc còn thiếu (tự cập nhật, có nút làm ngay).
+   Hoặc: **Nâng cao → 1. Kiểm tra máy** → bấm **Cài script cầu nối vào Cubase**.
    Trong Cubase: mở khung **MIDI Remote** (dưới cùng) → nút **Reload Scripts**.
    Cubase tự nhận thiết bị “AI LIVE VOCAL”.
 4. Trong Cubase, **chọn kênh giọng**, gán **Quick Controls** của kênh (Inspector → Quick Controls):
@@ -78,10 +79,12 @@ Tự động khi đang chạy (chỉ trong giới hạn an toàn):
   vẫn đúng đường dẫn; bản gốc giữ nguyên).
 * *Khôi phục từ bản sao lưu*: đóng project trong Cubase trước; bản hiện tại cũng được sao lưu thêm.
 * Tham số: **KHÔI PHỤC** (về bản gốc) hoặc cấu hình tốt đã lưu.
+* **Preset của app** (gán vai trò + hiệu chuẩn + cấu hình hát tốt): Nâng cao → 6 → *Xuất / Nhập cấu hình*.
+  Mỗi lần bấm *Lưu cấu hình đang hát tốt* và trước mỗi lần nhập, app tự lưu một bản vào `backups\cau-hinh__*.json`.
 
 ## 5. Đã kiểm chứng gì
 
-`python -m pytest -q tests` — 23 bài, đều đạt trên Linux và trên máy Windows của GitHub Actions
+`python -m pytest -q tests` — 24 bài, đều đạt trên Linux và trên máy Windows của GitHub Actions
 (kèm chạy thử giao diện từ mã nguồn và từ file `.exe` đã đóng gói). Nội dung kiểm thử:
 dò tone trên hoà âm tổng hợp (G, Am, E), một nốt đơn **không** cho kết quả tin cậy, khoá tone,
 YIN cao độ (sai < 0.15 cung), phân tích giọng, giao thức MIDI với Cubase giả lập (tên, giá trị,
@@ -95,8 +98,11 @@ BPM và phát hiện tiếng đôi, delay theo nhịp, chống clip chỉ hạ v
 
 * Chưa chạy trên Windows + Cubase Pro 15 + iCON Cube2Nano thật. Cần chạy `kiem_tra_may.bat` và
   gửi lại `%APPDATA%\AILiveVocal\bao-cao-kiem-tra.txt`.
-* Tên chính xác các hàm MIDI Remote API được viết theo tài liệu Steinberg; nếu Cubase báo lỗi script
-  (xem *MIDI Remote → Script Console*), đó là điểm cần sửa đầu tiên.
+* Script cầu nối đã được đối chiếu với script mẫu chính thức của Steinberg (`steinbergmedia/midiremote-userscripts`)
+  và một dự án cộng đồng lớn (`bjoluc/cubase-mcu-midiremote`): dạng callback, `sendMidi` gửi SysEx, binding
+  Quick Control/Fader/Send đều khớp. Riêng việc *nhận* SysEx (`mOnSysex`) không có trong mã mẫu nào, nên
+  ping/xin trạng thái chạy qua CC118/119 (chỉ dùng API đã xác nhận); SysEx chỉ là dự phòng. Nếu Cubase báo lỗi
+  script (*MIDI Remote → Script Console*), đó là điểm cần sửa đầu tiên.
 * Auto-Tune Artist phải cho phép tự động hoá *Key/Scale* qua Quick Control. Nếu không, lựa chọn:
   dùng tone hiển thị trong app để chỉnh tay 1 lần/bài, hoặc Antares Auto-Key (trả phí, ~49 USD).
 * Không đọc được sample rate/buffer ASIO từ ngoài Cubase — xem Studio Setup (khuyến nghị 48 kHz,
