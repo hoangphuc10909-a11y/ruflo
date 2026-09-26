@@ -1,0 +1,91 @@
+name: AI Live Vocal (Windows build)
+
+on:
+  push:
+    paths:
+      - "examples/ai-live-vocal/**"
+      - ".github/workflows/ai-live-vocal-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: examples/ai-live-vocal
+    env:
+      AILIVE_HOME: ${{ github.workspace }}\ailive-home
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.10.0 pytest
+
+      - name: Unit + protocol tests (Windows)
+        run: python -m pytest -q tests
+
+      - name: Machine check report (no Cubase on runner - expected errors)
+        run: |
+          python -m ailive.diagnose
+          Remove-Item "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt"
+          $env:AILIVE_SMOKE = "1"
+          python run_app.py --kiem-tra
+          if (!(Test-Path "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt")) { throw "no report" }
+
+      - name: GUI smoke test (source)
+        run: |
+          $env:AILIVE_SMOKE = "6"
+          python run_app.py
+          Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
+          $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
+          if (-not $j.ok) { throw "smoke failed" }
+          Remove-Item "$env:AILIVE_HOME\AILiveVocal\smoke.json"
+
+      - name: Build exe
+        run: |
+          pyinstaller --noconfirm --windowed --name "AI LIVE VOCAL" `
+            --add-data "cubase\ailive_vocalbridge.js;cubase" `
+            --collect-all soundcard --hidden-import rtmidi run_app.py
+
+      - name: GUI smoke test (packaged exe)
+        run: |
+          $env:AILIVE_SMOKE = "8"
+          $p = Start-Process -FilePath "dist\AI LIVE VOCAL\AI LIVE VOCAL.exe" -PassThru -Wait
+          Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
+          $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
+          if (-not $j.ok) { throw "exe smoke failed" }
+          if (!(Test-Path "dist\AI LIVE VOCAL\_internal\cubase\ailive_vocalbridge.js")) { throw "script not bundled" }
+          Remove-Item "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt"
+          Start-Process -FilePath "dist\AI LIVE VOCAL\AI LIVE VOCAL.exe" -ArgumentList "--kiem-tra" -Wait
+          Get-Content "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt"
+
+      - name: Package
+        run: |
+          Copy-Item README.md "dist\AI LIVE VOCAL\HUONG-DAN.md"
+          Copy-Item kiem_tra_may.bat "dist\AI LIVE VOCAL\" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist\AI LIVE VOCAL" -DestinationPath "AI-LIVE-VOCAL-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-LIVE-VOCAL-windows
+          path: examples/ai-live-vocal/AI-LIVE-VOCAL-windows.zip
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ailive-ci-reports
+          path: ${{ github.workspace }}\ailive-home

@@ -28,6 +28,7 @@ def default_params():
         1: Param("Auto-Tune Artist", "Scale", lambda v: SCALES[min(2, int(v * 3))], 0.5),
         2: Param("Auto-Tune Artist", "Retune Speed", lambda v: str(int(round(v * 400))), 0.05),
         3: Param("Auto-Tune Artist", "Humanize", lambda v: str(int(round(v * 100))), 0.3),
+        4: Param("MonoDelay", "Delay Time", lambda v: f"{20 + v * 1480:.0f} ms", 0.2),
         8: Param("VOCAL", "Volume", fader_db, 0.7),
         9: Param("FX 1-Reverb", "Send 1 Level", fader_db, 0.4),
         10: Param("FX 2-Delay", "Send 2 Level", fader_db, 0.3),

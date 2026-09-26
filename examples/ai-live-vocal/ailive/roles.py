@@ -31,6 +31,7 @@ ROLES: Dict[str, Role] = {r.key: r for r in [
     Role("tune_scale", "Auto-Tune · Scale", "enum", ("scale",), QC),
     Role("tune_speed", "Auto-Tune · Retune Speed", "number", ("retune",), QC),
     Role("tune_humanize", "Auto-Tune · Humanize", "number", ("humanize",), QC),
+    Role("delay_time", "Delay · Time (ms, khớp nhịp)", "number", ("delay time", "time"), QC, 1500.0, 20.0),
     Role("eq_lowmid", "EQ · cắt vùng đục 200-400 Hz (gain)", "number", ("low mid", "lmf", "band 2 gain", "gain 2"), QC, 3.0, -8.0),
     Role("eq_presence", "EQ · độ sáng/rõ lời 3-5 kHz (gain)", "number", ("presence", "hmf", "band 3 gain", "gain 3"), QC, 6.0, -3.0),
     Role("deess", "De-esser · Threshold", "number", ("de-ess", "deess", "sibil"), QC),

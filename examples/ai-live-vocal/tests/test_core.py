@@ -241,3 +241,45 @@ def test_cubase_js_script_speaks_same_protocol():
     assert link.targets[2].label == "Auto-Tune Artist · Retune Speed" and link.targets[2].display == "25"
     assert link.targets[8].label == "Giọng Chính · Volume" and link.targets[8].display == "-6.02 dB"
     assert link.status.script_version == 3
+
+
+def test_delay_follows_tempo_only_when_confident(ctl):
+    cub, link, c = ctl
+    assert c.target_of("delay_time") == 4
+    assert c.sync_delay(120, 0.2) is None  # chưa đủ tin cậy: không đổi
+    assert c.sync_delay(120, 0.9) == 500
+    time.sleep(0.1)
+    assert abs(parse_number(cub.params[4].fmt(cub.params[4].value)) - 500) <= 15
+    assert c.sync_delay(121, 0.9) is None  # lệch < 5%: giữ nguyên
+    assert c.sync_delay(80, 0.9) == 375     # 750 ms quá dài → nửa phách
+
+
+def test_output_guard_only_lowers_and_is_bounded(ctl):
+    cub, link, c = ctl
+    start = parse_number(cub.params[8].fmt(cub.params[8].value))
+    c.guard.interval = 0.0
+    total = 0.0
+    for _ in range(60):
+        total += c.protect_output(-0.2)
+        time.sleep(0.02)
+    time.sleep(0.5)
+    end = parse_number(cub.params[8].fmt(cub.params[8].value))
+    assert total == c.guard.max_cut_db == 6.0
+    assert start - 7.5 <= end < start - 4.5
+    assert c.protect_output(-20) == 0.0
+
+
+def test_health_helpers():
+    from ailive.health import SignalMonitor, auto_restore_allowed, setup_steps
+    m = SignalMonitor()
+    assert m.evaluate(True, 60, 0, 1, False, True)[0].startswith("Nhạc đang chạy nhưng MIC")
+    assert "Mix" in m.evaluate(True, 0, 0, 10, True, True)[0]
+    assert m.evaluate(False, 999, 0, None, False, True) == []
+    steps = setup_steps(False, False, False, {}, {}, {}, False)
+    assert steps[0].startswith("Mở loopMIDI") and len(steps) == 6
+    assert setup_steps(True, True, True, {"tune_key": 0}, {"tune_key": {}},
+                       {"music_device": 1, "mic_device": 1, "mix_device": 1}, True) == []
+    cal = {"tune_speed": {"label": "Auto-Tune Artist · Retune Speed"}}
+    assert auto_restore_allowed({"2": 0.1}, cal, lambda i: "Auto-Tune Artist · Retune Speed", {"tune_speed": 2})
+    assert not auto_restore_allowed({"2": 0.1}, cal, lambda i: "Guitar · Gain", {"tune_speed": 2})
+    assert not auto_restore_allowed({}, cal, lambda i: "", {})

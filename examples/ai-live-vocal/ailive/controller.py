@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from .health import OutputGuard
 from .keydetect import KeyResult, KeyTracker, chroma_from_audio
 from .midi_link import CubaseLink
 from .roles import ROLES, Calibration, parse_number, tonic_to_norm
@@ -41,6 +42,7 @@ class Controller:
         self.singing = False
         self._duck_applied = False
         self._lock = threading.RLock()
+        self.guard = OutputGuard()
 
     # ---------- vai trò ----------
     def target_of(self, role: str) -> Optional[int]:
@@ -193,6 +195,38 @@ class Controller:
         self.key_note = "Chưa chắc tone → dùng Chromatic (an toàn)." if ok else self.key_note
         self.changes.add("fallback_chromatic", ok=ok)
         return ok
+
+    def sync_delay(self, bpm: float, confidence: float, min_conf: float = 0.5) -> Optional[float]:
+        """Đặt thời gian delay = 1 phách (hoặc 1/2 phách nếu quá dài) khi nhận diện nhịp đủ tin cậy.
+        Không đổi nếu lệch < 5% để tránh chỉnh liên tục."""
+        if bpm <= 0 or confidence < min_conf or self.role_ready("delay_time"):
+            return None
+        ms = 60000.0 / bpm
+        if ms > 600:
+            ms /= 2
+        t = self.target_of("delay_time")
+        cur = parse_number(self.link.targets[t].display)
+        if cur is not None and cur > 0 and abs(cur - ms) / cur < 0.05:
+            return None
+        if self._set_number("delay_time", ms, ramp=0.0):
+            self.changes.add("sync_delay", bpm=bpm, ms=round(ms, 1))
+            return ms
+        return None
+
+    def protect_output(self, mix_peak_db: float) -> float:
+        """Chống clip đầu ra: chỉ HẠ fader giọng từng bước nhỏ, có giới hạn tổng."""
+        cut = self.guard.check(mix_peak_db)
+        if not cut or self.role_ready("vocal_fader"):
+            return 0.0
+        t = self.target_of("vocal_fader")
+        cur = parse_number(self.link.targets[t].display)
+        if cur is None or cur <= -120:
+            return 0.0
+        # bước 1 dB đặt ngay (như limiter), để lần kiểm tra sau đọc đúng mức mới
+        if self._set_number("vocal_fader", cur - cut, ramp=0.0):
+            self.changes.add("protect_output", peak=round(mix_peak_db, 1), cut_db=cut, total=self.guard.cut_total)
+            return cut
+        return 0.0
 
     def set_lock(self, locked: bool) -> None:
         self.tracker.locked = locked
