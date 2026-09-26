@@ -1,6 +1,6 @@
 # AI LIVE VOCAL — trợ lý điều khiển Cubase Pro 15 để hát LIVE TikTok
 
-> Trạng thái: **v0.1 — đã kiểm thử tự động, CHƯA chạy trên máy Windows thật của bạn.**
+> Trạng thái: **v0.2 — đã kiểm thử tự động (Linux + máy Windows của GitHub), CHƯA chạy với Cubase thật trên máy bạn.**
 > Mọi preset là **điểm xuất phát**, chưa phải bản cân giọng hoàn chỉnh cho tới khi hát thử và nghe lại.
 
 ## 1. Kiến trúc (vì sao chọn cách này)
@@ -26,14 +26,16 @@
 
 1. **loopMIDI** (miễn phí, tobias-erichsen.de): tạo đúng 2 cổng
    `AILive To Cubase` và `AILive From Cubase`. Bật “Autostart loopMIDI”.
-2. **Python 3.11 64-bit** (python.org, tick *Add to PATH*) → chạy `build.bat`.
-   Kết quả: `dist\AI LIVE VOCAL\AI LIVE VOCAL.exe`. (Chạy thẳng: `python run_app.py`.)
+2. **Tải bản dựng sẵn (không cần Python):** GitHub → repo → tab *Actions* → *AI Live Vocal (Windows build)*
+   → lần chạy mới nhất (dấu ✓ xanh) → mục *Artifacts* → tải **AI-LIVE-VOCAL-windows** → giải nén →
+   chạy `AI LIVE VOCAL.exe`. (Tự build: cài Python 3.11 64-bit rồi chạy `build.bat`.)
+   Chạy `kiem_tra_may.bat` (hoặc `AI LIVE VOCAL.exe --kiem-tra`) để tạo báo cáo kiểm tra máy.
 3. Mở ứng dụng → **Nâng cao → 1. Kiểm tra máy** → bấm **Cài script cầu nối vào Cubase**.
    Trong Cubase: mở khung **MIDI Remote** (dưới cùng) → nút **Reload Scripts**.
    Cubase tự nhận thiết bị “AI LIVE VOCAL”.
 4. Trong Cubase, **chọn kênh giọng**, gán **Quick Controls** của kênh (Inspector → Quick Controls):
    QC1 = Auto-Tune *Key*, QC2 = *Scale*, QC3 = *Retune Speed*, QC4 = *Humanize*;
-   (tuỳ chọn) QC5–QC8 = EQ vùng đục / EQ độ sáng / De-esser threshold / Compressor threshold.
+   (tuỳ chọn) QC5–QC8 = Delay Time / EQ vùng đục / EQ độ sáng / De-esser hoặc Compressor threshold.
    Send 1 = kênh vang, Send 2 = kênh delay. **Lưu project** (Quick Controls được lưu trong project).
 5. **Nâng cao → 2. Tham số Cubase**: bấm *Lấy từ kênh đang chọn* → *Tự nhận diện vai trò* →
    kiểm tra lại → **Hiệu chuẩn tất cả** (tắt nhạc, không LIVE; fader/send chỉ quét tăng dần và
@@ -57,6 +59,17 @@
 
 Đèn trạng thái: xanh = tốt, vàng = im lặng, đỏ = lỗi/clip, xám = chưa chọn.
 
+Tự động khi đang chạy (chỉ trong giới hạn an toàn):
+* **Mở app → tự khôi phục cấu hình hát tốt lần trước**, nhưng chỉ khi mọi tham số vẫn trỏ đúng
+  plugin như lúc hiệu chuẩn (chọn nhầm kênh thì app báo, không ghi).
+* **Chống clip đầu ra TikTok:** tín hiệu Mix chạm gần 0 dBFS liên tục → hạ fader giọng 1 dB/lần,
+  tối đa 6 dB mỗi phiên. App **không bao giờ tự tăng** âm lượng.
+* **Delay theo nhịp:** ước lượng BPM từ nhạc; chỉ đặt Delay Time (1 phách, hoặc ½ phách nếu > 600 ms)
+  khi đủ tin cậy, lệch < 5% thì giữ nguyên; khi KHOÁ TONE thì cũng không đổi delay.
+* **Báo mất tín hiệu:** mic im lặng khi đang hát có nhạc, Mix không có tiếng dù mic có tiếng,
+  mất kết nối Cubase (giọng vẫn chạy bình thường).
+* Mở app lần đầu: dòng thông báo cho biết **bước cài đặt tiếp theo** còn thiếu.
+
 ## 4. Sao lưu & khôi phục
 
 * Dữ liệu: `%APPDATA%\AILiveVocal\` (config, nhật ký `changes.jsonl`, `ailive.log`, bản thu, báo cáo).
@@ -68,12 +81,14 @@
 
 ## 5. Đã kiểm chứng gì
 
-`python -m pytest -q tests` — 20 bài, đều đạt (trên Linux, không có Cubase):
+`python -m pytest -q tests` — 23 bài, đều đạt trên Linux và trên máy Windows của GitHub Actions
+(kèm chạy thử giao diện từ mã nguồn và từ file `.exe` đã đóng gói). Nội dung kiểm thử:
 dò tone trên hoà âm tổng hợp (G, Am, E), một nốt đơn **không** cho kết quả tin cậy, khoá tone,
 YIN cao độ (sai < 0.15 cung), phân tích giọng, giao thức MIDI với Cubase giả lập (tên, giá trị,
 tiếng Việt), ramp mượt và đơn điệu, hiệu chuẩn + fader không vượt ngưỡng, chặn khi chọn nhầm
 track, áp phong cách/tone/nói chuyện rồi khôi phục đúng gốc, sao lưu–khôi phục project,
-BPM và phát hiện tiếng đôi, và **chạy thật script Cubase bằng Node** với API giả lập để kiểm tra
+BPM và phát hiện tiếng đôi, delay theo nhịp, chống clip chỉ hạ và có giới hạn, cảnh báo mất tín hiệu,
+điều kiện tự khôi phục, và **chạy thật script Cubase bằng Node** với API giả lập để kiểm tra
 định dạng SysEx.
 
 ## 6. Chưa kiểm chứng / giới hạn còn lại
@@ -87,7 +102,8 @@ BPM và phát hiện tiếng đôi, và **chạy thật script Cubase bằng Nod
 * Không đọc được sample rate/buffer ASIO từ ngoài Cubase — xem Studio Setup (khuyến nghị 48 kHz,
   buffer 128–256). Độ trễ và tiếng rè phải đo trên máy thật.
 * Mic phân tích qua WDM: một số driver không cho dùng song song với ASIO → tab Hát thử sẽ báo.
-* Delay theo nhịp: app ước lượng BPM nhưng chưa tự đổi thời gian delay (nên bật *Sync* trong plugin delay).
+* Delay theo nhịp cần plugin delay cho điều khiển *Delay Time* theo ms qua Quick Control; nếu plugin chỉ có
+  chế độ *Sync* theo tempo Cubase thì bật Sync và bỏ qua vai trò này.
 * “Vang thông minh” do app điều khiển có trễ ~0,2–0,5 s. Cách chuẩn hơn (thời gian thực): sidechain
   compressor trên kênh vang, key từ kênh giọng — làm trong Cubase.
 * Không cài đặt TikTok LIVE Studio thay bạn; app kiểm tra tín hiệu thực tế TikTok sẽ nhận và hướng dẫn.
