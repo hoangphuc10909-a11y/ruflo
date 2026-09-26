@@ -52,13 +52,14 @@ jobs:
           Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
           $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
           if (-not $j.ok) { throw "smoke failed" }
+          if ($j.link_error -match "module") { throw "MIDI backend missing: $($j.link_error)" }
           Remove-Item "$env:AILIVE_HOME\AILiveVocal\smoke.json"
 
       - name: Build exe
         run: |
           pyinstaller --noconfirm --windowed --name "AI LIVE VOCAL" `
             --add-data "cubase\ailive_vocalbridge.js;cubase" `
-            --collect-all soundcard --hidden-import rtmidi run_app.py
+            --collect-all soundcard --collect-submodules mido --hidden-import mido.backends.rtmidi --hidden-import rtmidi run_app.py
 
       - name: GUI smoke test (packaged exe)
         run: |
@@ -67,10 +68,14 @@ jobs:
           Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json"
           $j = Get-Content "$env:AILIVE_HOME\AILiveVocal\smoke.json" -Raw | ConvertFrom-Json
           if (-not $j.ok) { throw "exe smoke failed" }
+          if ($j.link_error -match "module") { throw "MIDI backend missing in exe: $($j.link_error)" }
+          if (-not ($j.midi_ports.out -match "Microsoft GS Wavetable")) { throw "rtmidi cannot enumerate Windows MIDI ports in exe" }
           if (!(Test-Path "dist\AI LIVE VOCAL\_internal\cubase\ailive_vocalbridge.js")) { throw "script not bundled" }
           Remove-Item "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt"
           Start-Process -FilePath "dist\AI LIVE VOCAL\AI LIVE VOCAL.exe" -ArgumentList "--kiem-tra" -Wait
-          Get-Content "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt"
+          $r = Get-Content "$env:AILIVE_HOME\AILiveVocal\bao-cao-kiem-tra.txt" -Raw
+          $r
+          if ($r -match "No module") { throw "missing module in exe" }
 
       - name: Package
         run: |

@@ -82,6 +82,7 @@ class CubaseLink:
     def _lib(self):
         if self._mido is None:
             import mido  # noqa: WPS433
+            import mido.backends.rtmidi  # noqa: F401 — nạp tường minh để bản .exe đóng gói đủ backend
             self._mido = mido
         return self._mido
 

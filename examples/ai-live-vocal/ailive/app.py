@@ -374,7 +374,11 @@ class App:
         """Chế độ kiểm thử tự động: ghi trạng thái rồi thoát."""
         import json
         from .store import app_dir
-        info = {"ok": True, "cubase_connected": self.link.status.connected, "link_error": self.link.status.error,
+        try:
+            midi = self.link.available_ports()
+        except Exception as e:
+            midi = {"error": str(e)}
+        info = {"ok": True, "midi_ports": midi, "cubase_connected": self.link.status.connected, "link_error": self.link.status.error,
                 "captures": {k: {"running": c.running, "error": c.error} for k, c in self.caps.items()},
                 "pending_setup": self.pending_setup(), "message": self.msg.cget("text")}
         (app_dir() / "smoke.json").write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")

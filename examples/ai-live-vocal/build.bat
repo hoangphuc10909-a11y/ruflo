@@ -8,7 +8,7 @@ pip install -r requirements.txt pyinstaller==6.10.0 pytest || goto :err
 python -m pytest -q tests || goto :err
 pyinstaller --noconfirm --windowed --name "AI LIVE VOCAL" ^
   --add-data "cubase\ailive_vocalbridge.js;cubase" ^
-  --collect-all soundcard --hidden-import rtmidi ^
+  --collect-all soundcard --collect-submodules mido --hidden-import mido.backends.rtmidi --hidden-import rtmidi ^
   run_app.py || goto :err
 echo.
 echo XONG: dist\AI LIVE VOCAL\AI LIVE VOCAL.exe
